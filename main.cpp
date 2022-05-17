@@ -1,31 +1,43 @@
 #include <cmath>
 #include <cstdint>
 #include <vector>
+#include <fstream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 #include "ortools/constraint_solver/routing.h"
 #include "ortools/constraint_solver/routing_enums.pb.h"
 #include "ortools/constraint_solver/routing_index_manager.h"
 #include "ortools/constraint_solver/routing_parameters.h"
 
+struct Point {
+    double x;
+    double y;
+};
+
+double distance(Point p1, Point p2) {
+    return sqrt(pow((p1.x - p2.x),2) + pow((p1.y - p2.y),2));
+}
+
+void readGraph(std::vector<std::vector<double>>& matrix, int N, std::vector<Point>& points) {
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            if (i == j) {
+                matrix[i][j] = 0;
+            } else {
+                matrix[i][j] = distance(points[i], points[j]);
+            }
+        }
+    }
+}
+
+
 namespace operations_research {
 struct DataModel {
-  const std::vector<std::vector<int64_t>> distance_matrix{
-      {0, 2451, 713, 1018, 1631, 1374, 2408, 213, 2571, 875, 1420, 2145, 1972},
-      {2451, 0, 1745, 1524, 831, 1240, 959, 2596, 403, 1589, 1374, 357, 579},
-      {713, 1745, 0, 355, 920, 803, 1737, 851, 1858, 262, 940, 1453, 1260},
-      {1018, 1524, 355, 0, 700, 862, 1395, 1123, 1584, 466, 1056, 1280, 987},
-      {1631, 831, 920, 700, 0, 663, 1021, 1769, 949, 796, 879, 586, 371},
-      {1374, 1240, 803, 862, 663, 0, 1681, 1551, 1765, 547, 225, 887, 999},
-      {2408, 959, 1737, 1395, 1021, 1681, 0, 2493, 678, 1724, 1891, 1114, 701},
-      {213, 2596, 851, 1123, 1769, 1551, 2493, 0, 2699, 1038, 1605, 2300, 2099},
-      {2571, 403, 1858, 1584, 949, 1765, 678, 2699, 0, 1744, 1645, 653, 600},
-      {875, 1589, 262, 466, 796, 547, 1724, 1038, 1744, 0, 679, 1272, 1162},
-      {1420, 1374, 940, 1056, 879, 225, 1891, 1605, 1645, 679, 0, 1017, 1200},
-      {2145, 357, 1453, 1280, 586, 887, 1114, 2300, 653, 1272, 1017, 0, 504},
-      {1972, 579, 1260, 987, 371, 999, 701, 2099, 600, 1162, 1200, 504, 0},
-  };
-  const int num_vehicles = 1;
-  const RoutingIndexManager::NodeIndex depot{0};
+    std::vector<std::vector<double>> distance_matrix;
+    const int num_vehicles = 1;
+    const RoutingIndexManager::NodeIndex depot{0};
 };
 
 //! @brief Print the solution.
@@ -35,9 +47,9 @@ struct DataModel {
 void PrintSolution(const RoutingIndexManager& manager,
                    const RoutingModel& routing, const Assignment& solution) {
   // Inspect solution.
-  LOG(INFO) << "Objective: " << solution.ObjectiveValue() << " miles";
+//  LOG(INFO) << "Objective: " << solution.ObjectiveValue() << " miles";
   int64_t index = routing.Start(0);
-  LOG(INFO) << "Route:";
+//  LOG(INFO) << "Route:";
   int64_t distance{0};
   std::stringstream route;
   while (routing.IsEnd(index) == false) {
@@ -46,16 +58,16 @@ void PrintSolution(const RoutingIndexManager& manager,
     index = solution.Value(routing.NextVar(index));
     distance += routing.GetArcCostForVehicle(previous_index, index, int64_t{0});
   }
-  LOG(INFO) << route.str() << manager.IndexToNode(index).value();
-  LOG(INFO) << "Route distance: " << distance << "miles";
-  LOG(INFO) << "";
-  LOG(INFO) << "Advanced usage:";
-  LOG(INFO) << "Problem solved in " << routing.solver()->wall_time() << "ms";
+ // LOG(INFO) << route.str() << manager.IndexToNode(index).value();
+  std::cout << distance << std::endl;
+//  LOG(INFO) << "";
+//  LOG(INFO) << "Advanced usage:";
+//  LOG(INFO) << "Problem solved in " << routing.solver()->wall_time() << "ms";
 }
 
-void Tsp() {
+void Tsp(DataModel init_data) {
   // Instantiate the data problem.
-  DataModel data;
+  DataModel data = init_data;
 
   // Create Routing Index Manager
   RoutingIndexManager manager(data.distance_matrix.size(), data.num_vehicles,
@@ -90,7 +102,30 @@ void Tsp() {
 }  // namespace operations_research
 
 int main(int argc, char** argv) {
-  operations_research::Tsp();
-  return EXIT_SUCCESS;
+    std::string path = "C:\Users\garmash\Desktop\TSPtests";
+               auto it = fs::directory_iterator(path);
+               std::vector<fs::path> array_path;
+               copy_if(fs::begin(it), fs::end(it), std::back_inserter(array_path),
+                   [](const auto& entry) {
+                       return fs::is_regular_file(entry);
+               });
+    for (auto& p : array_path) {
+        std::ifstream fin;
+        fin.open(p.string());
+        std::cout << p.string() << std::endl;
+        int64_t N;
+        fin >> N;
+        operations_research::DataModel data;
+        std::vector<Point> points(N);
+            for (int i = 0; i < N; i++) {
+                Point p;
+                fin >> p.x >> p.y;
+                points[i] = p;
+            }
+            std::vector<std::vector<double> > matrix(N, std::vector<double>(N));
+            readGraph(matrix, N, points);
+            data.distance_matrix = matrix;
+            operations_research::Tsp(data);
+        }
+    return EXIT_SUCCESS;
 }
-
